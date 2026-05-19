@@ -158,3 +158,6 @@ export default function AdminLogin({ onLogin }: AdminLoginProps) {
     </div>
   );
 }
+
+  );
+}
