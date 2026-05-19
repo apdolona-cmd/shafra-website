@@ -30,7 +30,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const menuItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: '📊' },
     { id: 'settings', label: 'إعدادات الموقع', icon: '⚙️' },
-    { id: 'hero', label: 'البانر الرئيسي', icon: '🖼️' },
+    { id: 'media', label: 'إدارة الصور', icon: '🖼️' },
+    { id: 'hero', label: 'البانر الرئيسي', icon: '📸' },
     { id: 'services', label: 'الخدمات', icon: '🔧' },
     { id: 'products', label: 'المنتجات', icon: '📦' },
     { id: 'portfolio', label: 'الأعمال', icon: '💼' },
@@ -148,6 +149,7 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         <div className="p-6">
           {activeTab === 'dashboard' && <DashboardTab stats={stats} settings={settings} />}
           {activeTab === 'settings' && <SettingsTab settings={settings} refreshSettings={refreshSettings} showNotification={showNotification} />}
+          {activeTab === 'media' && <MediaTab showNotification={showNotification} />}
           {activeTab === 'hero' && <HeroTab showNotification={showNotification} />}
           {activeTab === 'services' && <ServicesTab showNotification={showNotification} />}
           {activeTab === 'products' && <ProductsTab showNotification={showNotification} />}
@@ -1321,6 +1323,187 @@ function MessagesTab({ showNotification }: { showNotification: (t: string, m: st
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Media Manager Tab - لإدارة الصور واللوجو
+function MediaTab({ showNotification }: { showNotification: (t: string, m: string) => void }) {
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(db.getUploadedFiles());
+  const [uploading, setUploading] = useState(false);
+  const [fileName, setFileName] = useState('');
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploading(true);
+      try {
+        const base64 = await fileToBase64(file);
+        const uploadedFile: Omit<UploadedFile, 'id' | 'uploadDate'> = {
+          name: fileName || file.name,
+          type: file.type,
+          size: file.size,
+          url: base64,
+        };
+        const result = await db.addUploadedFile(uploadedFile);
+        setUploadedFiles(db.getUploadedFiles());
+        setFileName('');
+        showNotification('success', `تم رفع ${file.name} بنجاح`);
+      } catch (error) {
+        showNotification('error', 'حدث خطأ أثناء رفع الملف');
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذه الصورة؟')) {
+      db.deleteUploadedFile(id);
+      setUploadedFiles(db.getUploadedFiles());
+      showNotification('success', 'تم حذف الصورة');
+    }
+  };
+
+  const copyToClipboard = (url: string) => {
+    navigator.clipboard.writeText(url);
+    showNotification('success', 'تم نسخ الرابط');
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Upload Section */}
+      <div className="p-6 rounded-2xl bg-gray-800/50 border border-gray-700/50 max-w-4xl">
+        <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
+          <span>📤</span> رفع الصور واللوجو
+        </h3>
+        
+        <div className="space-y-4">
+          <FormField 
+            label="اسم الصورة (اختياري)" 
+            value={fileName} 
+            onChange={setFileName} 
+            placeholder="مثال: شعار الموقع، صورة البانر..." 
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">اختر الصورة</label>
+            <label className="block w-full py-8 px-6 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-2 border-dashed border-blue-500/50 hover:border-blue-400 cursor-pointer transition-all hover:bg-blue-500/5">
+              <div className="text-center">
+                <div className="text-5xl mb-3">🖼️</div>
+                <p className="text-gray-300 font-medium">اسحب الصورة هنا أو اضغط للاختيار</p>
+                <p className="text-gray-500 text-sm mt-1">الصيغ المدعومة: JPG, PNG, GIF, WebP</p>
+              </div>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileUpload} 
+                disabled={uploading}
+                className="hidden" 
+              />
+            </label>
+          </div>
+
+          {uploading && (
+            <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center gap-3">
+              <div className="animate-spin">⏳</div>
+              <span className="text-blue-300">جاري رفع الصورة...</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Images Gallery */}
+      <div className="p-6 rounded-2xl bg-gray-800/50 border border-gray-700/50">
+        <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
+          <span>🎞️</span> الصور المرفوعة ({uploadedFiles.length})
+        </h3>
+
+        {uploadedFiles.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-6xl mb-3">📁</p>
+            <p className="text-gray-400">لم تقم برفع أي صور بعد</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {uploadedFiles.map(file => (
+              <div key={file.id} className="rounded-xl bg-gray-700/30 border border-gray-600 overflow-hidden hover:border-blue-500 transition-all">
+                {/* Image Preview */}
+                {file.type.startsWith('image/') && (
+                  <img 
+                    src={file.url} 
+                    alt={file.name} 
+                    className="w-full h-32 object-cover" 
+                  />
+                )}
+                
+                {/* File Info */}
+                <div className="p-4">
+                  <p className="font-medium text-white truncate mb-2">{file.name}</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                    <span>📊 {(file.size / 1024).toFixed(2)} KB</span>
+                    <span>📅 {new Date(file.uploadDate).toLocaleDateString('ar-EG')}</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => copyToClipboard(file.url)}
+                      className="flex-1 py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm font-medium"
+                      title="نسخ رابط الصورة"
+                    >
+                      📋 نسخ
+                    </button>
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      className="flex-1 py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors text-sm font-medium text-center"
+                      title="تحميل الصورة"
+                    >
+                      ⬇️ تحميل
+                    </a>
+                    <button
+                      onClick={() => handleDelete(file.id)}
+                      className="flex-1 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors text-sm font-medium"
+                      title="حذف الصورة"
+                    >
+                      🗑️ حذف
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Links */}
+      <div className="p-6 rounded-2xl bg-gray-800/50 border border-gray-700/50">
+        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+          <span>📋</span> نصائح استخدام الصور
+        </h3>
+        <div className="grid md:grid-cols-2 gap-4 text-sm">
+          <div className="p-4 rounded-lg bg-gray-700/30 border border-gray-600">
+            <p className="font-medium text-blue-300 mb-2">✅ اللوجو</p>
+            <p className="text-gray-400">استخدم صور بصيغة PNG أو SVG بخلفية شفافة للحصول على أفضل النتائج</p>
+          </div>
+          <div className="p-4 rounded-lg bg-gray-700/30 border border-gray-600">
+            <p className="font-medium text-green-300 mb-2">✅ صور البانر</p>
+            <p className="text-gray-400">استخدم صور بحجم 1920×600 على الأقل للحصول على جودة عالية</p>
+          </div>
+          <div className="p-4 rounded-lg bg-gray-700/30 border border-gray-600">
+            <p className="font-medium text-purple-300 mb-2">✅ حجم الملف</p>
+            <p className="text-gray-400">حاول أن لا يتجاوز حجم الصورة 5MB لتسريع التحميل</p>
+          </div>
+          <div className="p-4 rounded-lg bg-gray-700/30 border border-gray-600">
+            <p className="font-medium text-orange-300 mb-2">✅ صيغ موصى بها</p>
+            <p className="text-gray-400">استخدم JPG للصور العادية و PNG للصور التي تحتاج شفافية</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
       </div>
     </div>
   );
